@@ -1,0 +1,219 @@
+# Учебник Vagrantfile. Стенд курса — ../Vagrantfile, его и запускай.
+# Документация: https://developer.hashicorp.com/vagrant/docs/vagrantfile
+#
+# Как читать
+#   1. Живой код ниже — тот же минимум, что в ../Vagrantfile.
+#   2. Остальное под # — рецепты. Копируй один кусок, когда появилась задача.
+#   3. Не копируй файл целиком: сети, provision и define друг другу мешают.
+#
+# Vagrantfile — Ruby. Настройки мержатся, не «последний файл победил»:
+#   бокс → ~/.vagrant.d/Vagrantfile → Vagrantfile проекта → define → provider
+# Несколько Vagrant.configure в одном файле тоже сливаются сверху вниз.
+#
+# "2" — версия API конфига, не версия Vagrant.
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # =====================================================================
+  # 1. Рабочий минимум (как ../Vagrantfile)
+  # =====================================================================
+  config.vm.box = "bento/ubuntu-26.04"
+  config.vm.box_architecture = :auto     # arm64 на Apple Silicon, amd64 на x86
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 2048
+    vb.cpus = 2
+  end
+
+  # Проброс: браузер на Mac → процесс в VM. host_ip 127.0.0.1 — только
+  # этот Mac, не вся Wi-Fi. 8888, не 8080: не пересечься с локальным dev.
+  config.vm.network "forwarded_port", guest: 8080, host: 8888, host_ip: "127.0.0.1"
+
+  # Имена — чтобы vagrant provision --provision-with prepare|stack.
+  # Короткое — inline. Длинное — path.
+  config.vm.provision "prepare", type: "shell", path: "scripts/prepare.sh"
+  config.vm.provision "stack", type: "shell", path: "scripts/provision.sh"
+
+  # Каталог репо уже смонтирован в /vagrant. Строку synced_folder можно не писать.
+  # /vagrant/js-fastify-blog на VM = js-fastify-blog/ на Mac.
+
+  # =====================================================================
+  # 2. Box — когда не хватает двух строк выше
+  # =====================================================================
+  # config.vm.box_version = "202510.26.0"     # пин версии; ">= 1.0, < 2.0"
+  # config.vm.box_check_update = true         # дефолт; проверка на каждый up
+  # config.vm.box_url = "https://example.com/box.box"  # не Cloud; можно массив
+  # config.vm.hostname = "dev"                # иначе hostname не трогает
+  # config.vm.post_up_message = "Блог: http://127.0.0.1:8888"
+  # config.vm.boot_timeout = 300              # ждать SSH после boot, секунды
+  # config.vm.guest = :linux                  # :windows + communicator "winrm"
+  # config.vm.communicator = "ssh"
+
+  # =====================================================================
+  # 3. Сеть — один тип на задачу, не все сразу
+  # =====================================================================
+  # forwarded_port  — с Mac достучаться до порта в VM (браузер, redis-cli).
+  # private_network — VM видят друг друга (Ansible по 192.168.x.x).
+  # public_network  — VM в домашней LAN. Учебный бокс с паролем vagrant: не надо.
+  #
+  # Несколько network — список, не перезапись. Два forwarded_port на guest 80
+  # без разных host — конфликт. auto_correct подберёт свободный host-порт.
+  #
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+  # config.vm.network "forwarded_port", guest: 22, host: 2222, id: "ssh"
+  #   id: "ssh" заменяет дефолтный проброс SSH, не добавляет второй.
+  # config.vm.network "forwarded_port", guest: 443, host: 8443,
+  #   protocol: "tcp", auto_correct: true
+  #
+  # config.vm.network "private_network", ip: "192.168.56.10"
+  # config.vm.network "private_network", type: "dhcp"   # вместо ip, не вместе
+  #
+  # config.vm.network "public_network"
+  # config.vm.network "public_network", ip: "192.168.0.17", bridge: "en0: Wi-Fi"
+
+  # =====================================================================
+  # 4. Папки
+  # =====================================================================
+  # Дефолт и так есть. Пиши synced_folder, когда нужен второй путь,
+  # другой тип (rsync/nfs) или выключить шаринг.
+  #
+  # config.vm.synced_folder ".", "/vagrant"
+  # config.vm.synced_folder ".", "/vagrant", disabled: true
+  # config.vm.synced_folder "../data", "/vagrant_data"
+  # config.vm.synced_folder ".", "/vagrant",
+  #   type: "virtualbox",
+  #   owner: "vagrant", group: "vagrant",
+  #   mount_options: ["dmode=755", "fmode=644"]
+
+  # =====================================================================
+  # 5. Ресурсы VM (провайдер)
+  # =====================================================================
+  # Без блока VirtualBox возьмёт дефолты бокса (часто 512–1024 МБ).
+  # Блок неизвестного провайдера Vagrant пропускает — можно держать несколько.
+  # override — box/сеть только для этого провайдера.
+  #
+  # config.vm.provider "virtualbox" do |vb|
+  #   vb.gui = false
+  #   vb.memory = 2048
+  #   vb.cpus = 2
+  #   vb.name = "vagrant-dev"       # имя в VirtualBox GUI
+  #   vb.linked_clone = true        # быстрее, общий базовый диск
+  #   vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+  # end
+  # config.vm.provider "virtualbox" do |vb, override|
+  #   override.vm.box = "bento/ubuntu-26.04"
+  # end
+  # config.vm.provider "vmware_desktop" do |v|
+  #   v.vmx["memsize"] = "2048"
+  #   v.vmx["numvcpus"] = "2"
+  # end
+  # config.vm.provider "docker" do |d|
+  #   d.image = "ubuntu:24.04"      # это уже не VirtualBox-VM
+  # end
+
+  # =====================================================================
+  # 6. Provision — формы записи. В очередь попадёт каждый раскомментированный.
+  # =====================================================================
+  # run: "once"   — дефолт, при создании (и при vagrant provision)
+  #      "always" — каждый up
+  #      "never"  — только vagrant provision --provision-with ИМЯ
+  #
+  # Однострочник — одна команда:
+  # config.vm.provision "shell", inline: "apt-get update"
+  #
+  # Heredoc — несколько команд, ещё без файла:
+  # config.vm.provision "shell", inline: <<-SHELL
+  #   apt-get update
+  #   apt-get install -y nginx
+  # SHELL
+  #
+  # Тот же скрипт в переменной, если хочется вынести из вызова:
+  # $script = <<-SCRIPT
+  #   echo provisioning
+  #   date > /etc/vagrant_provisioned_at
+  # SCRIPT
+  # config.vm.provision "shell", inline: $script
+  #
+  # <<-'SCRIPT' — Ruby не трогает кавычки внутри.
+  #
+  # Файл. Путь от корневого Vagrantfile, не от examples/:
+  # config.vm.provision "shell", path: "scripts/prepare.sh"
+  # config.vm.provision "shell", path: "https://example.com/setup.sh"
+  #
+  # Блок |s| — когда опций больше двух:
+  # config.vm.provision "shell" do |s|
+  #   s.name = "apt"
+  #   s.inline = "echo $1"
+  #   s.args = ["hello"]
+  #   s.privileged = true          # sudo; дефолт true
+  #   s.env = { "FOO" => "bar" }
+  #   s.sensitive = true           # не светить env в логе
+  # end
+  #
+  # Имя слева — для --provision-with prepare:
+  # config.vm.provision "prepare", type: "shell", path: "scripts/prepare.sh"
+  # config.vm.provision "shell", name: "restart", run: "never",
+  #   inline: "systemctl restart nginx"
+  #
+  # Не shell. Нужны файлы рядом, иначе up упадёт:
+  # config.vm.provision "file", source: "files/app.conf", destination: "/etc/app.conf"
+  # config.vm.provision "ansible" do |ansible|
+  #   ansible.playbook = "playbook.yml"
+  #   ansible.inventory_path = "inventory/hosts.ini"
+  # end
+  # config.vm.provision "ansible_local" do |ansible|
+  #   ansible.playbook = "playbook.yml"    # Ansible внутри VM
+  # end
+  # config.vm.provision "docker" do |d|
+  #   d.run "redis", image: "redis:alpine", args: "-p 6379:6379"
+  # end
+
+  # =====================================================================
+  # 7. Несколько машин — когда одной VM мало
+  # =====================================================================
+  # Появился define — машины называются web/db, не default.
+  # Общее (box, provider) оставляй на config, частное — внутри блока.
+  # vagrant up          — все с autostart: true
+  # vagrant up web
+  # vagrant ssh web
+  #
+  # config.vm.define "web", primary: true do |web|
+  #   web.vm.hostname = "web"
+  #   web.vm.network "private_network", ip: "192.168.56.10"
+  #   web.vm.provision "shell", path: "scripts/web.sh"
+  # end
+  # config.vm.define "db", autostart: false do |db|
+  #   db.vm.hostname = "db"
+  #   db.vm.network "private_network", ip: "192.168.56.11"
+  # end
+
+  # =====================================================================
+  # 8. SSH — дефолты бокса (user vagrant) обычно хватает
+  # =====================================================================
+  # config.ssh.insert_key = true            # заменить небезопасный ключ бокса
+  # config.ssh.forward_agent = true         # свой ssh-agent внутрь VM (git/github)
+  # config.ssh.username = "vagrant"
+  # config.ssh.private_key_path = "~/.vagrant.d/insecure_private_key"
+  # config.ssh.extra_args = ["-L", "8008:localhost:80"]  # только на `vagrant ssh`
+  # config.ssh.pty = false                  # не включать «на всякий случай»
+
+  # =====================================================================
+  # 9. Позже: диск, триггеры, плагины
+  # =====================================================================
+  # config.vm.disk :disk, size: "10GB", name: "data"
+  # config.vm.cloud_init content_type: "text/cloud-config", path: "cloud-init.yml"
+  #
+  # config.trigger.after :up do |t|
+  #   t.info = "VM поднята"
+  #   t.run = { inline: "echo done" }       # команда на Mac
+  # end
+  # config.trigger.before :destroy do |t|
+  #   t.warn = "Сейчас удалим VM"
+  #   t.on_error = :continue
+  # end
+  #
+  # config.vagrant.plugins = "vagrant-vbguest"   # поставит gem на хост
+  # config.vagrant.sensitive = [ENV["MY_TOKEN"]]
+end

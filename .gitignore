@@ -1,0 +1,12 @@
+# Локальное состояние Vagrant (ключи VM, не в git)
+.vagrant/
+
+# MacOS
+.DS_Store
+**/.DS_Store
+
+# Блог: исходники в репо, зависимости и локальные данные — нет
+js-fastify-blog/node_modules/
+js-fastify-blog/dist/
+js-fastify-blog/database/
+js-fastify-blog/.env
